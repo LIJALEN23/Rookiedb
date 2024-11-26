@@ -7,8 +7,10 @@ import edu.berkeley.cs186.database.databox.DataBox;
 import edu.berkeley.cs186.database.databox.Type;
 import edu.berkeley.cs186.database.memory.BufferManager;
 import edu.berkeley.cs186.database.memory.Page;
+import edu.berkeley.cs186.database.table.Record;
 import edu.berkeley.cs186.database.table.RecordId;
 
+import javax.xml.crypto.Data;
 import java.nio.ByteBuffer;
 import java.util.*;
 
@@ -81,25 +83,71 @@ class InnerNode extends BPlusNode {
     @Override
     public LeafNode get(DataBox key) {
         // TODO(proj2): implement
-
-        return null;
+        //在内部节点，需要通过key获得当前节点的子节点。
+        BPlusNode child = BPlusNode.fromBytes(metadata, bufferManager, treeContext,
+                children.get(numLessThanEqual(key, keys)));
+        return child.get(key);
     }
 
     // See BPlusNode.getLeftmostLeaf.
     @Override
     public LeafNode getLeftmostLeaf() {
         assert(children.size() > 0);
-        // TODO(proj2): implement
+        BPlusNode leftMostChild = BPlusNode.fromBytes(metadata, bufferManager, treeContext, children.get(0));
+       return leftMostChild.getLeftmostLeaf();
+    }
 
-        return null;
+    /**
+     *
+     *
+     *
+     */
+    private Optional<Pair<DataBox, Long>> insert(DataBox key, Long child) {
+        if (keys.contains(key)) {
+            throw new BPlusTreeException("insert duplicate entries with the same key");
+        }
+
+        int index = numLessThanEqual(key, keys);
+        keys.add(index, key);
+        children.add(index + 1, child);
+
+        if (keys.size() <= metadata.getOrder() * 2) {
+            //Case1 : not overflow
+            sync();
+            return Optional.empty();
+        } else {
+            //Case2 : overflow
+            DataBox splitKey = keys.get(metadata.getOrder());
+            List<DataBox> rightKeys = keys.subList(metadata.getOrder() * 2 + 1, keys.size());
+            List<Long> rightChildren = children.subList(metadata.getOrder() * 2 + 1, children.size());
+
+            keys = keys.subList(0, metadata.getOrder() * 2);
+            children = children.subList(0, metadata.getOrder() * 2 + 1);
+
+            InnerNode newRightSibling = new InnerNode(metadata, bufferManager, rightKeys, rightChildren, treeContext);
+
+            sync();
+            return Optional.of(new Pair(key, newRightSibling.getPage().getPageNum()));
+        }
     }
 
     // See BPlusNode.put.
     @Override
     public Optional<Pair<DataBox, Long>> put(DataBox key, RecordId rid) {
         // TODO(proj2): implement
+        //寻找插入位置
+        BPlusNode child = BPlusNode.fromBytes(metadata, bufferManager, treeContext, children.get(numLessThanEqual(key, keys)));
+        //获得是否溢出的信息，即是否需要分裂
+        Optional<Pair<DataBox, Long>> splitInfo = child.put(key, rid);
 
-        return Optional.empty();
+       if (splitInfo.isPresent()) {
+           //Overflow
+           Pair<DataBox, Long> info = splitInfo.get();
+           return insert(info.getFirst(), info.getSecond());
+       } else {
+           //Not overflow
+           return splitInfo;
+       }
     }
 
     // See BPlusNode.bulkLoad.

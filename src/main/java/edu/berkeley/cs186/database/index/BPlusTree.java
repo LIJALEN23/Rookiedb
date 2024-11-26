@@ -146,8 +146,7 @@ public class BPlusTree {
         LockUtil.ensureSufficientLockHeld(lockContext, LockType.NL);
 
         // TODO(proj2): implement
-
-        return Optional.empty();
+        return root.get(key).getKey(key);
     }
 
     /**
@@ -240,6 +239,24 @@ public class BPlusTree {
     }
 
     /**
+     *
+     *
+     *
+     *
+     */
+    private void splitRoot(DataBox key, Long child) {
+        List<DataBox> keys = new ArrayList<>();
+        keys.add(key);
+
+        List<Long> children = new ArrayList<>();
+        children.add(root.getPage().getPageNum());
+        children.add(child);
+
+        BPlusNode newRoot = new InnerNode(metadata, bufferManager, keys, children, lockContext);
+        updateRoot(newRoot);
+    }
+
+    /**
      * Inserts a (key, rid) pair into a B+ tree. If the key already exists in
      * the B+ tree, then the pair is not inserted and an exception is raised.
      *
@@ -257,8 +274,12 @@ public class BPlusTree {
         // Note: You should NOT update the root variable directly.
         // Use the provided updateRoot() helper method to change
         // the tree's root if the old root splits.
-
-        return;
+        //从根节点插入新键值对，需要判断是否溢出。溢出了需要分裂根节点
+        Optional<Pair<DataBox, Long>> splitInfo = root.put(key, rid);
+        //发生溢出，分裂
+        if (splitInfo.isPresent()) {
+            splitRoot(splitInfo.get().getFirst(), splitInfo.get().getSecond());
+        }
     }
 
     /**

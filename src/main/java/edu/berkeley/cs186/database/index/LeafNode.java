@@ -147,24 +147,53 @@ class LeafNode extends BPlusNode {
     @Override
     public LeafNode get(DataBox key) {
         // TODO(proj2): implement
-
-        return null;
+        return this;
     }
 
     // See BPlusNode.getLeftmostLeaf.
     @Override
     public LeafNode getLeftmostLeaf() {
         // TODO(proj2): implement
-
-        return null;
+        return this;
     }
 
     // See BPlusNode.put.
     @Override
     public Optional<Pair<DataBox, Long>> put(DataBox key, RecordId rid) {
         // TODO(proj2): implement
+        //已经有这个key的索引了
+        if (keys.contains(key)) {
+            throw new BPlusTreeException("insert duplicate entries with the same key");
+        }
 
-        return Optional.empty();
+        //获得需要插入位置的下标
+        int index = InnerNode.numLessThanEqual(key, keys);
+        keys.add(index, key);
+        rids.add(index, rid);
+
+        if (keys.size() <= metadata.getOrder() * 2) {
+            //Case1: 不需要分裂，更新信息后返回空信号
+            sync();
+            return Optional.empty();
+        } else {
+            //Case2: 需要分裂
+            List<DataBox> rightKeys = keys.subList(metadata.getOrder(), keys.size());   //度对应下标开始分裂
+            List<RecordId> rightRids = rids.subList(metadata.getOrder(), keys.size());
+
+            //左节点
+            keys = keys.subList(0, metadata.getOrder());
+            rids = rids.subList(0, metadata.getOrder());
+
+            //新的右兄弟
+            LeafNode newRightSibling = new LeafNode(metadata, bufferManager, rightKeys, rightRids, rightSibling,treeContext);
+
+            //更新当前节点右兄弟信息
+            rightSibling = Optional.of(newRightSibling.getPage().getPageNum());
+
+            //更新叶子信息
+            sync();
+            return Optional.of(new Pair(rightKeys.get(0), newRightSibling.getPage().getPageNum()));
+        }
     }
 
     // See BPlusNode.bulkLoad.
@@ -377,7 +406,30 @@ class LeafNode extends BPlusNode {
         // use the constructor that reuses an existing page instead of fetching a
         // brand new one.
 
-        return null;
+        //获得该通过pageNum和bufferManager获得对应的page
+        Page page = bufferManager.fetchPage(treeContext, pageNum);
+        //给这个page生成一个buffer，以方便获取page里的数据
+        Buffer buf = page.getBuffer();
+
+        //或者这个buf对应的节点类型
+        byte nodeType = buf.get();
+        assert (nodeType == (byte)1);
+
+        List<DataBox> keys = new ArrayList<>();
+        List<RecordId> rids = new ArrayList<>();
+
+        //是否有右兄弟
+        long rs = buf.getLong();
+        Optional<Long> rightSibling = rs == -1 ? Optional.empty() : Optional.of(rs);
+
+        //获得键的数量
+        int nums = buf.getInt();
+        for (int i = 0; i < nums; i++) {
+            keys.add(DataBox.fromBytes(buf, metadata.getKeySchema()));
+            rids.add(RecordId.fromBytes(buf));
+        }
+
+        return new LeafNode(metadata, bufferManager, page, keys, rids, rightSibling, treeContext);
     }
 
     // Builtins ////////////////////////////////////////////////////////////////
