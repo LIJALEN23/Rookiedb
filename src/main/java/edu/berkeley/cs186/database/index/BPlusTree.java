@@ -310,8 +310,8 @@ public class BPlusTree {
             throw new BPlusTreeException("The B+Tree is not empty!");
         }
 
-        //data中有数据，进行bulkLoad
-        if (data.hasNext()) {
+        //data中有数据，则进行bulkLoad
+        while (data.hasNext()) {
             //需要判断是否需要分裂
             Optional<Pair<DataBox, Long>> splitInfo = root.bulkLoad(data, fillFactor);
             if (splitInfo.isPresent()) {

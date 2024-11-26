@@ -219,21 +219,17 @@ class LeafNode extends BPlusNode {
             List<DataBox> newKeys = new ArrayList<>();
             List<RecordId> newRids = new ArrayList<>();
 
-            while (data.hasNext() && keys.size() < maxRecords) {
-                Pair<DataBox, RecordId> pair = data.next();
-                newKeys.add(pair.getFirst());
-                newRids.add(pair.getSecond());
-            }
+            Pair<DataBox, RecordId> pair = data.next();
+            newKeys.add(pair.getFirst());
+            newRids.add(pair.getSecond());
 
             //创建新的右兄弟节点
             LeafNode newRightSibling = new LeafNode(metadata, bufferManager, newKeys, newRids, rightSibling, treeContext);
             //更新当前节点指向右兄弟的指针
             rightSibling = Optional.of(newRightSibling.getPage().getPageNum());
 
-            DataBox splitKey = keys.get(keys.size() - 1);
-            keys.remove(splitKey);
             //更新返回信息
-            ret = Optional.of(new Pair(splitKey, rightSibling.get()));
+            ret = Optional.of(new Pair(pair.getFirst(), rightSibling.get()));
         }
 
         //更新节点存储信息
