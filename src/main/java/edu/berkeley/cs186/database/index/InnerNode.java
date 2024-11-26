@@ -136,7 +136,8 @@ class InnerNode extends BPlusNode {
     public Optional<Pair<DataBox, Long>> put(DataBox key, RecordId rid) {
         // TODO(proj2): implement
         //寻找插入位置
-        BPlusNode child = BPlusNode.fromBytes(metadata, bufferManager, treeContext, children.get(numLessThanEqual(key, keys)));
+        BPlusNode child = BPlusNode.fromBytes(metadata, bufferManager,
+                treeContext, children.get(numLessThanEqual(key, keys)));
         //获得是否溢出的信息，即是否需要分裂
         Optional<Pair<DataBox, Long>> splitInfo = child.put(key, rid);
 
@@ -163,7 +164,8 @@ class InnerNode extends BPlusNode {
     @Override
     public void remove(DataBox key) {
         // TODO(proj2): implement
-
+        LeafNode leaf = get(key);
+        leaf.remove(key);
         return;
     }
 
