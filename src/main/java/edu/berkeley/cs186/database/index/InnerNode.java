@@ -107,7 +107,7 @@ class InnerNode extends BPlusNode {
             throw new BPlusTreeException("insert duplicate entries with the same key");
         }
 
-        int index = numLessThanEqual(key, keys);
+        int index = numLessThan(key, keys);
         keys.add(index, key);
         children.add(index + 1, child);
 
@@ -118,16 +118,16 @@ class InnerNode extends BPlusNode {
         } else {
             //Case2 : overflow
             DataBox splitKey = keys.get(metadata.getOrder());
-            List<DataBox> rightKeys = keys.subList(metadata.getOrder() * 2 + 1, keys.size());
-            List<Long> rightChildren = children.subList(metadata.getOrder() * 2 + 1, children.size());
+            List<DataBox> rightKeys = keys.subList(metadata.getOrder() + 1, keys.size());
+            List<Long> rightChildren = children.subList(metadata.getOrder() + 1, children.size());
 
-            keys = keys.subList(0, metadata.getOrder() * 2);
-            children = children.subList(0, metadata.getOrder() * 2 + 1);
+            keys = keys.subList(0, metadata.getOrder());
+            children = children.subList(0, metadata.getOrder() + 1);
 
             InnerNode newRightSibling = new InnerNode(metadata, bufferManager, rightKeys, rightChildren, treeContext);
 
             sync();
-            return Optional.of(new Pair(key, newRightSibling.getPage().getPageNum()));
+            return Optional.of(new Pair(splitKey, newRightSibling.getPage().getPageNum()));
         }
     }
 
