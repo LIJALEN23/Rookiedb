@@ -9,6 +9,7 @@ import edu.berkeley.cs186.database.memory.BufferManager;
 import edu.berkeley.cs186.database.memory.Page;
 import edu.berkeley.cs186.database.table.RecordId;
 
+import javax.xml.crypto.Data;
 import java.nio.ByteBuffer;
 import java.util.*;
 
@@ -201,8 +202,43 @@ class LeafNode extends BPlusNode {
     public Optional<Pair<DataBox, Long>> bulkLoad(Iterator<Pair<DataBox, RecordId>> data,
             float fillFactor) {
         // TODO(proj2): implement
+        //根据填充因子计算每个叶节点的最大填充数量
+        int maxRecords = (int) Math.ceil(fillFactor * metadata.getOrder() * 2);
 
-        return Optional.empty();
+        //将data填入当前叶子节点中，若到达规定数量后还有数据则需要一个新的右兄弟节点
+        while (keys.size() < maxRecords && data.hasNext()) {
+            Pair<DataBox, RecordId> pair = data.next();
+            keys.add(pair.getFirst());
+            rids.add(pair.getSecond());
+        }
+
+        //给父InnerNode返回的信息，若没有分裂出新节点则父节点不需要获得分裂信息
+        Optional<Pair<DataBox, Long>> ret = Optional.empty();
+        //data中还有信息，继续载入
+        if (data.hasNext()) {
+            List<DataBox> newKeys = new ArrayList<>();
+            List<RecordId> newRids = new ArrayList<>();
+
+            while (data.hasNext() && keys.size() < maxRecords) {
+                Pair<DataBox, RecordId> pair = data.next();
+                newKeys.add(pair.getFirst());
+                newRids.add(pair.getSecond());
+            }
+
+            //创建新的右兄弟节点
+            LeafNode newRightSibling = new LeafNode(metadata, bufferManager, newKeys, newRids, rightSibling, treeContext);
+            //更新当前节点指向右兄弟的指针
+            rightSibling = Optional.of(newRightSibling.getPage().getPageNum());
+
+            DataBox splitKey = keys.get(keys.size() - 1);
+            keys.remove(splitKey);
+            //更新返回信息
+            ret = Optional.of(new Pair(splitKey, rightSibling.get()));
+        }
+
+        //更新节点存储信息
+        sync();
+        return ret;
     }
 
     // See BPlusNode.remove.

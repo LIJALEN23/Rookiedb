@@ -156,8 +156,28 @@ class InnerNode extends BPlusNode {
     public Optional<Pair<DataBox, Long>> bulkLoad(Iterator<Pair<DataBox, RecordId>> data,
             float fillFactor) {
         // TODO(proj2): implement
+        //从下向上构造B+树时，左边的已经排好后不会再次被修改，所以每次从最右边开始bulkLoad
+        BPlusNode rightMostChild = BPlusNode.fromBytes(metadata, bufferManager,
+                treeContext, children.get(children.size() - 1));
 
-        return Optional.empty();
+        Optional<Pair<DataBox, Long>> splitInfo = rightMostChild.bulkLoad(data, fillFactor);
+        if (splitInfo.isPresent()) {
+            //孩子分裂了，需要先更新分裂(插入溢出节点)，再递归调用bulkLoad
+            DataBox splitKey = splitInfo.get().getFirst();
+            Long splitChild = splitInfo.get().getSecond();
+
+            Optional<Pair<DataBox, Long>> insertInfo = insert(splitKey, splitChild);
+            if (insertInfo.isPresent()){
+                //若还有溢出发生则还需要进行更新
+                return insertInfo;
+            } else {
+                //没有溢出发生
+                return bulkLoad(data, fillFactor);
+            }
+        } else {
+            //未分裂
+            return splitInfo;
+        }
     }
 
     // See BPlusNode.remove.

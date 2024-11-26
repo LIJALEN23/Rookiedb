@@ -201,8 +201,7 @@ public class BPlusTree {
         LockUtil.ensureSufficientLockHeld(lockContext, LockType.NL);
 
         // TODO(proj2): Return a BPlusTreeIterator.
-
-        return Collections.emptyIterator();
+        return new BPlusTreeIterator(root.getLeftmostLeaf());
     }
 
     /**
@@ -234,8 +233,8 @@ public class BPlusTree {
         LockUtil.ensureSufficientLockHeld(lockContext, LockType.NL);
 
         // TODO(proj2): Return a BPlusTreeIterator.
-
-        return Collections.emptyIterator();
+        LeafNode node = root.get(key);
+        return new BPlusTreeIterator(node, key);
     }
 
     /**
@@ -307,8 +306,18 @@ public class BPlusTree {
         // Note: You should NOT update the root variable directly.
         // Use the provided updateRoot() helper method to change
         // the tree's root if the old root splits.
+        if (scanAll().hasNext()) {
+            throw new BPlusTreeException("The B+Tree is not empty!");
+        }
 
-        return;
+        //data中有数据，进行bulkLoad
+        if (data.hasNext()) {
+            //需要判断是否需要分裂
+            Optional<Pair<DataBox, Long>> splitInfo = root.bulkLoad(data, fillFactor);
+            if (splitInfo.isPresent()) {
+                splitRoot(splitInfo.get().getFirst(), splitInfo.get().getSecond());
+            }
+        }
     }
 
     /**
@@ -442,19 +451,53 @@ public class BPlusTree {
     // Iterator ////////////////////////////////////////////////////////////////
     private class BPlusTreeIterator implements Iterator<RecordId> {
         // TODO(proj2): Add whatever fields and constructors you want here.
+        LeafNode currNode;      //当前的叶节点
+        Iterator<RecordId> currIter;    //当前RecordId的迭代器
+
+        /**
+         * 整个B+树最左端的节点
+         * */
+        BPlusTreeIterator(LeafNode leftMostLeafNode) {
+            currNode = leftMostLeafNode;
+            currIter = currNode.scanAll();
+        }
+
+        /**
+         * 通过一个key来获得该key后面的所有节点
+         * */
+        BPlusTreeIterator(LeafNode node, DataBox key) {
+            currNode = node;
+            currIter = currNode.scanGreaterEqual(key);
+        }
 
         @Override
         public boolean hasNext() {
             // TODO(proj2): implement
+            if (currIter.hasNext()) {
+                return true;
+            } else {
+                //当前节点已经迭代完了，判断是否右兄弟还有迭代数据
+                Optional<LeafNode> rightSibling = currNode.getRightSibling();
+                if (rightSibling.isPresent()) {
+                    //更新currNode和currIter
+                    currNode = rightSibling.get();
+                    currIter = currNode.scanAll();
 
-            return false;
+                    return true;
+                } else {
+                    return false;
+                }
+            }
         }
 
         @Override
         public RecordId next() {
             // TODO(proj2): implement
-
-            throw new NoSuchElementException();
+            if (currIter.hasNext()) {
+                return currIter.next();
+            } else {
+                throw new NoSuchElementException();
+            }
         }
     }
 }
