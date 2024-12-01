@@ -87,6 +87,16 @@ public class BNLJOperator extends JoinOperator {
          */
         private void fetchNextLeftBlock() {
             // TODO(proj3_part1): implement
+            if (!leftSourceIterator.hasNext())
+            {   //do nothing
+                return;
+            }
+
+            leftBlockIterator = QueryOperator.getBlockIterator(leftSourceIterator,
+                    getLeftSource().getSchema(), numBuffers - 2);
+
+            leftBlockIterator.markNext();
+            leftRecord = leftBlockIterator.next();
         }
 
         /**
@@ -101,6 +111,15 @@ public class BNLJOperator extends JoinOperator {
          */
         private void fetchNextRightPage() {
             // TODO(proj3_part1): implement
+            if (!rightSourceIterator.hasNext())
+            {
+                return;
+            }
+
+            rightPageIterator = QueryOperator.getBlockIterator(rightSourceIterator,
+                    getRightSource().getSchema(), 1);
+
+            rightPageIterator.markNext();
         }
 
         /**
@@ -113,7 +132,43 @@ public class BNLJOperator extends JoinOperator {
          */
         private Record fetchNextRecord() {
             // TODO(proj3_part1): implement
-            return null;
+            if (leftRecord == null)
+            {   //Nothing to fetch
+                return null;
+            }
+
+            while (true)
+            {
+                Record rightRecord = null;
+                if (rightPageIterator.hasNext()) {
+                    //Case1: 右页迭代器可以产生一个值
+
+                } else if (leftBlockIterator.hasNext()) {
+                    //Case2: 右页迭代器不可以产生一个值，但左块迭代器有
+                    leftRecord = leftBlockIterator.next();
+                    rightPageIterator.reset();
+
+                } else if (rightSourceIterator.hasNext()) {
+                    //Case3: 右页迭代器和左块迭代器都没有了，但还有右页
+                    leftBlockIterator.reset();
+                    leftRecord = leftBlockIterator.next();
+                    fetchNextRightPage();
+
+                } else if (leftSourceIterator.hasNext()) {
+                    //Case4: 右页迭代器和左块迭代器都没有了，也没有更多的右页，但还有左块
+                    fetchNextLeftBlock();
+                    rightSourceIterator.reset();
+                    fetchNextRightPage();
+
+                } else {
+                    return null;
+                }
+
+                rightRecord = rightPageIterator.next();
+                if (compare(leftRecord, rightRecord) == 0) {
+                    return leftRecord.concat(rightRecord);
+                }
+            }
         }
 
         /**
